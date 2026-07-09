@@ -1,21 +1,17 @@
 FROM python:3.11-slim
 
-# 安装基础系统依赖
+# 安装系统依赖（只需要一次）
 RUN apt-get update && apt-get install -y \
-    gcc \
-    gfortran \
     build-essential \
+    gfortran \
     libopenblas-dev \
     liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# 先单独安装 scipy（从预编译的 wheel 安装）
-RUN pip install --no-cache-dir \
-    --only-binary :all: \
-    --extra-index-url https://www.piwheels.org/simple \
-    scipy==1.10.1
+# 先安装 numpy+scipy 的预编译 wheel（从默认 PyPI）
+RUN pip install --no-cache-dir --only-binary :all: numpy scipy==1.10.1
 
 # 复制 requirements.txt 并安装其他依赖
 COPY requirements.txt .
