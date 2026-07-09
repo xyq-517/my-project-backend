@@ -31,7 +31,7 @@ def f_score(inputs, target, beta=1, smooth = 1e-5, threhold = 0.5):
     score = torch.mean(score)
     return score
 
-def compute_hd95(inputs, target, threshold=0.5):
+def compute_single_hd95(inputs, target, threshold=0.5):
     n, c, h, w = inputs.size()
     # 获取预测结果，这里假设 inputs 是 logits，经过 softmax
     temp_inputs = torch.softmax(inputs, dim=1)
