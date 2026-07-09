@@ -1,0 +1,19 @@
+# Ignore local data and artifacts not needed for deployment
+.npm-cache/
+img_out/
+uploads/
+results/
+image_pre/
+VOCdevkit_kits19/
+VOCdevkit_lidc_test/
+VOCdevkit.zip
+*.zip
+model_data/
+logs/
+*.pth
+*.pt
+*.ckpt
+*.h5
+新建文件夹/
+__pycache__/
+.temp_miou_out/

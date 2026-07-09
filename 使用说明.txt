@@ -1,0 +1,14 @@
+1、原图如果是三通道jpg格式
+    复制你的数据集放在VOCdevkit\VOC2007文件夹内
+    SegmentationClass放置标签，单通道png格式,像素从0开始排序
+    JPEGImages放置你的图片
+    运行voc_annotation.py划分数据集
+
+
+
+train.py文件，修改训练的轮次和批次,参数，并运行
+
+
+
+
+
