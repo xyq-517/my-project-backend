@@ -1,13 +1,7 @@
 FROM python:3.11-slim
 
-# 安装 scipy 和 opencv 所需的系统依赖
+# 安装 scipy 所需的系统依赖
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
     gcc \
     gfortran \
     build-essential \
@@ -18,14 +12,13 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# 先只复制 requirements.txt
 COPY requirements.txt .
 
-# 先单独安装 scipy（避免依赖冲突）
-RUN pip install --no-cache-dir numpy scipy
-
-# 再安装其他依赖
+# 安装所有依赖（因为设置了 PIP_PREFER_BINARY，pip会优先下载预编译包）
 RUN pip install --no-cache-dir -r requirements.txt
 
+# 再复制其余代码
 COPY . .
 
 EXPOSE 8000
