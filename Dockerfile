@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# 安装系统依赖（只需要一次）
+# 安装系统编译依赖
 RUN apt-get update && apt-get install -y \
     build-essential \
     gfortran \
@@ -10,10 +10,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# 先安装 numpy+scipy 的预编译 wheel（从默认 PyPI）
-RUN pip install --no-cache-dir --only-binary :all: numpy scipy==1.10.1
-
-# 复制 requirements.txt 并安装其他依赖
+# 复制 requirements.txt 并安装依赖
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
