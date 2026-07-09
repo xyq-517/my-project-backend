@@ -1,6 +1,5 @@
 FROM python:3.11-slim
 
-# 安装系统编译依赖
 RUN apt-get update && apt-get install -y \
     build-essential \
     gfortran \
@@ -10,7 +9,6 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# 复制 requirements.txt 并安装依赖
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
