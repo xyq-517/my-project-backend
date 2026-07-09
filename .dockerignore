@@ -1,0 +1,11 @@
+.git
+.gitignore
+*.md
+*.log
+*.pyc
+__pycache__
+VOCdevkit_*
+logs/
+*.pth
+*.h5
+*.pt
