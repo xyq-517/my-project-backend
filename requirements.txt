@@ -3,7 +3,7 @@ torchvision
 tensorboard
 numpy
 matplotlib
-opencv-python
+opencv-python-headless
 tqdm
 Pillow
 h5py
