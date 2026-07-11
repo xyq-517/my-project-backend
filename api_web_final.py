@@ -1,4 +1,5 @@
 # api_web_final.py - 图像分割 API 服务
+# 修复版：适配 Railway / Docker 部署
 
 import sys
 import os
@@ -13,33 +14,20 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import numpy as np
 from PIL import Image
-def download_model():
-    model_path = "model_data/vgg16-397923af.pth"
-    if not os.path.exists(model_path):
-        print("📥 正在下载模型权重...")
-        os.makedirs("model_data", exist_ok=True)
-        # 把你复制的临时链接粘贴到下面的引号里
-        url = "https://pth-1451618751.cos.ap-shanghai.myqcloud.com/model_data/vgg16-397923af.pth?q-sign-algorithm=sha1&q-ak=AKIDaF8lsYAomTEhSBB9JFV1yKL0S6wJ85ZTfkqIQiAqsldg7uQi5XMcTkvLy0wQKueh&q-sign-time=1783577892;1783581492&q-key-time=1783577892;1783581492&q-header-list=host&q-url-param-list=&q-signature=1ace12468da824411593537fc3bb901bb570636e&x-cos-security-token=XyLqfqgTpDYGzmq50rve7YSbEeHch1da0f9e85684b9a38cdf746303c0915b2f8tPMyQ5GAEyZeDgv3OdZ9N32gUDQxQhqfBgqMk88NNMmZVVEn2aHSob6-C4k4vm41QA7QCLO3rldnXKF_HZvOBZEE-13C-8asyTL13HmyqFfy5s-8kulszEDcIj0il6DmSBjQScaddj9i46Pbzm2GjJCYKnKnT8DjtDhEVVUYoGNMzQhLqHdcjP9_2vdAMZkpIVPRmJ1ezw7JHGhGvYitXSv7SW9RdW10CT1I-Dhwy-IgJrk0s9aUVOP2wC6e-YfixTYpwvA9r9R7JIUy6GCHGQ"
-        urllib.request.urlretrieve(url, model_path)
-        print("✅ 模型下载完成！")
-import os
-import sys
 
-# 强制设置 UTF-8 编码，避免字符集问题
-if sys.platform == 'win32':
-    import locale
-    locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
-# 配置
-HASH_MAP_FILE = r"D:\shengwu\using\unet-pytorch\kits19_hash_map.json"
-KITS19_GOLD_STANDARD_PATH = r"D:\shengwu\using\unet-pytorch\VOCdevkit_kits19\VOC2007\SegmentationClass_Vis"
-KITS19_PREDICT_PATH = r"D:\shengwu\using\unet-pytorch\img_out"
-LIDC_GOLD_STANDARD_PATH = r"D:\shengwu\using\unet-pytorch\VOCdevkit_lidc_test\VOC2007\SegmentationClass"
-LIDC_PREDICT_PATH = r"D:\shengwu\using\unet-pytorch\img_out"
-METRICS_PATH = r"D:\shengwu\using\unet-pytorch\miou_out\metrics.json"
+# ==================== 路径配置（修复：使用相对路径，兼容 Linux/Docker） ====================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+HASH_MAP_FILE = os.path.join(BASE_DIR, "kits19_hash_map.json")
+KITS19_GOLD_STANDARD_PATH = os.path.join(BASE_DIR, "VOCdevkit_kits19", "VOC2007", "SegmentationClass_Vis")
+KITS19_PREDICT_PATH = os.path.join(BASE_DIR, "img_out")
+LIDC_GOLD_STANDARD_PATH = os.path.join(BASE_DIR, "VOCdevkit_lidc_test", "VOC2007", "SegmentationClass")
+LIDC_PREDICT_PATH = os.path.join(BASE_DIR, "img_out")
+METRICS_PATH = os.path.join(BASE_DIR, "miou_out", "metrics.json")
 
 # 每张图的分割系数CSV文件
-KITS19_PER_IMAGE_CSV = r"D:\shengwu\using\unet-pytorch\per_image_metrics_kits19_dformer_EPA_test.csv"
-LIDC_PER_IMAGE_CSV = r"D:\shengwu\using\unet-pytorch\miou_out\per_image_metrics_LIDC_test.csv"
+KITS19_PER_IMAGE_CSV = os.path.join(BASE_DIR, "per_image_metrics_kits19_dformer_EPA_test.csv")
+LIDC_PER_IMAGE_CSV = os.path.join(BASE_DIR, "miou_out", "per_image_metrics_LIDC_test.csv")
 
 app = Flask(__name__)
 CORS(app)
@@ -51,6 +39,8 @@ metrics_cache = {}
 kits19_per_image_metrics = {}
 lidc_per_image_metrics = {}
 
+
+# ==================== 工具函数 ====================
 
 def image_to_base64(image):
     """将 PIL Image 转换为 base64 字符串"""
@@ -80,7 +70,6 @@ def load_per_image_metrics(csv_path):
             for row in reader:
                 image_id = row.get('image_id', '')
                 if image_id:
-                    # 加载所有列（除 image_id 外）
                     metrics_dict[image_id] = {}
                     for key, value in row.items():
                         if key == 'image_id':
@@ -88,7 +77,7 @@ def load_per_image_metrics(csv_path):
                         try:
                             metrics_dict[image_id][key] = float(value)
                         except (ValueError, TypeError):
-                            metrics_dict[image_id][key] = value  # 保留原始值（如 'nan'）
+                            metrics_dict[image_id][key] = value
         print(f"[加载] {csv_path}: {len(metrics_dict)} 条记录")
     except Exception as e:
         print(f"[错误] 加载CSV失败: {e}")
@@ -113,10 +102,18 @@ def clean_nan_value(value):
     return value
 
 
+# ==================== API 路由 ====================
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """健康检查"""
-    return jsonify({'status': 'ok', 'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')})
+    return jsonify({
+        'status': 'ok',
+        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'kits19_count': len(kits19_hash_map),
+        'kits19_csv_count': len(kits19_per_image_metrics),
+        'lidc_csv_count': len(lidc_per_image_metrics)
+    })
 
 
 @app.route('/api/segment', methods=['POST'])
@@ -291,37 +288,61 @@ def segment_image():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-if __name__ == '__main__':
+# ==================== 服务初始化（修复：模块级别初始化，gunicorn 也能执行） ====================
+
+def initialize_service():
+    """初始化服务：加载数据文件和模型"""
+    global kits19_hash_map, metrics_cache, kits19_per_image_metrics, lidc_per_image_metrics, unet
+
     print("=" * 60)
     print("正在初始化 API 服务...")
+    print(f"工作目录: {BASE_DIR}")
 
     # 加载哈希映射
     if os.path.exists(HASH_MAP_FILE):
         with open(HASH_MAP_FILE, 'r', encoding='utf-8') as f:
             kits19_hash_map = json.load(f)
         print(f"kits19 哈希映射: {len(kits19_hash_map)} 条")
+    else:
+        print(f"[警告] 哈希映射文件不存在: {HASH_MAP_FILE}")
 
     # 加载指标
     if os.path.exists(METRICS_PATH):
         with open(METRICS_PATH, 'r', encoding='utf-8') as f:
             metrics_cache = json.load(f)
         print("指标数据已加载")
+    else:
+        print(f"[警告] 指标文件不存在: {METRICS_PATH}")
 
     # 加载每张图的分割系数CSV
     print("加载每张图的分割系数...")
     kits19_per_image_metrics = load_per_image_metrics(KITS19_PER_IMAGE_CSV)
     lidc_per_image_metrics = load_per_image_metrics(LIDC_PER_IMAGE_CSV)
 
-    # 加载模型（备用）
-    print("加载 UNet 模型...")
-    from unet import Unet
-
-    unet = Unet()
-    print("UNet 模型加载完成")
+    # 尝试加载 UNet 模型（备用，失败不影响预生成模式）
+    print("尝试加载 UNet 模型（备用）...")
+    try:
+        from unet import Unet
+        unet = Unet()
+        print("UNet 模型加载完成")
+    except Exception as e:
+        print(f"[警告] UNet 模型加载失败（不影响预生成模式）: {e}")
+        unet = None
 
     print("=" * 60)
-    print("服务地址: http://0.0.0.0:5003")
-    print("API 端点: POST /api/segment")
+    print("API 服务初始化完成")
+    print(f"健康检查: GET /api/health")
+    print(f"分割接口: POST /api/segment")
     print("=" * 60)
 
-    app.run(host='0.0.0.0', port=5003, debug=False, threaded=True)
+
+# 在模块加载时执行初始化（gunicorn 启动时也会执行）
+initialize_service()
+
+
+# ==================== 本地开发启动 ====================
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5003))
+    print(f"服务地址: http://0.0.0.0:{port}")
+    app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
