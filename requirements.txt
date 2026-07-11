@@ -1,5 +1,6 @@
-# 轻量版依赖 — 预生成模式专用
-# 只包含 API 服务必需的依赖，不包含 PyTorch/OpenCV
+# 部署用 requirements（Nixpacks 方案）
+# 直接把这个文件重命名为 requirements.txt，删除 Dockerfile
+# Railway 会自动检测 Python 项目并构建
 flask==2.3.3
 flask-cors==4.0.0
 gunicorn
