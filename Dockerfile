@@ -1,32 +1,60 @@
+# Dockerfile - 修复版：适配 Railway 部署
+# 修复内容：
+# 1. 添加 OpenCV 系统依赖（libgl1, libglib2.0-0 等）
+# 2. 复制数据文件（img_out, VOCdevkit, miou_out, json, csv）
+# 3. 使用 $PORT 环境变量（Railway 自动注入）
+# 4. 预生成模式不需要下载模型（节省构建时间和镜像体积）
+
 FROM python:3.11-slim
 
-# 安装系统依赖
+# 安装系统依赖（OpenCV 需要 libgl1, libglib2.0-0 等）
 RUN apt-get update && apt-get install -y \
     build-essential \
     gfortran \
     libopenblas-dev \
     liblapack-dev \
     wget \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
+# 先复制 requirements.txt 并安装依赖（利用 Docker 缓存）
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 创建目录
-RUN mkdir -p model_data logs
+# 创建必要目录
+RUN mkdir -p model_data logs img_out miou_out
 
-# 下载 ResNet50 预训练权重（替换成你的下载链接）
-RUN wget -O model_data/resnet50-19c8e357.pth \
-    "https://pth-1451618751.cos.ap-shanghai.myqcloud.com/model_data/resnet50-19c8e357.pth?q-sign-algorithm=sha1&q-ak=AKID3bnpzREsOdKbZ9rl_xSt_qQ3ZMbCXPpTv-SoZ0E5RUM5rAHTmP8FvqWthRuT-srz&q-sign-time=1783645497;1783649097&q-key-time=1783645497;1783649097&q-header-list=host&q-url-param-list=&q-signature=62c959b465cb9681029d9dbde26c1443caf8c31e&x-cos-security-token=c3ejoeCLtJHsFCjs9jv64VeehVXe3Lea6a80e0f25318b0679ea7f0de589b32de_jSo4YIAXWZNuytpdba63gi-P6mLyjINWyn5pCwUSWcV9PL_5lVBxNv-D677dYew1JOYgIFdOSQwoGLep2u1ByrUBRl3Xb68JH7LU0SzWFosb03m_2W0ibBeBgLPfLCn_VyK0iQrzKDytgE6ZuqXO556MxDFDTgmJG1wLs5b_myPZBjXIxagaXp2mlHCAc_a6_AdsbpP3dRuXRrb8eqCTVFY-Au4OcubKRMaU9a5b85ln0OJo8Co5oNhrKZ7kyKOkortyFAoMUbgfOjwDq1kWQ"
+# 复制核心代码
+COPY api_web_final.py .
+COPY unet.py .
+COPY nets/ ./nets/
+COPY utils/ ./utils/
 
-# 下载训练好的 UNet 模型（替换成你的下载链接）
-RUN wget -O logs/best_epoch_weights.pth \
-    "https://pth-1451618751.cos.ap-shanghai.myqcloud.com/best_epoch_weights.pth?q-sign-algorithm=sha1&q-ak=AKIDb0K8Svn2KY0FzfV_cr0_kT79UH-WxQWa8p0TgOUZ7s2LffGlDGXHWJRBiIdNDsw2&q-sign-time=1783645478;1783649078&q-key-time=1783645478;1783649078&q-header-list=host&q-url-param-list=&q-signature=d997091c099f19cca5c25feb93b23fb575c3cc4c&x-cos-security-token=c3ejoeCLtJHsFCjs9jv64VeehVXe3Lea97a775a5a4efd407dfcdb4f7371460e3_jSo4YIAXWZNuytpdba63s6-xa4__hkhZovEwMOWVPeuIx0dfbhHp-6nGee8l4Tu5L9wvWomY1lmeLmaiRYJGRGDie6j-Vsnrx8MUJc-M6WUMP8tyy-VUmWJweef0ptX41YE2V3kk4-iAw0_PWoneTAfaXYmGd96vlD1VWmjxFYeDhB36ErydN3JoFgzOMQk5RRxb4ONdXd6TNxbs97n74eEZKcoAj3UTv9o163wQPGRFr5QL2Ib_HLJ6JBhyh3IYVKa23373Bph66IQ5x7hDA"
+# 复制数据文件（预生成图片、金标准、指标等）
+# 注意：确保这些文件在 GitHub 仓库中存在
+COPY kits19_hash_map.json .
+COPY per_image_metrics_kits19_dformer_EPA_test.csv .
 
-COPY . .
+# 复制预生成预测图
+COPY img_out/ ./img_out/
 
+# 复制 kits19 金标准图
+COPY VOCdevkit_kits19/ ./VOCdevkit_kits19/
+
+# 复制 LIDC 金标准图
+COPY VOCdevkit_lidc_test/ ./VOCdevkit_lidc_test/
+
+# 复制指标数据
+COPY miou_out/ ./miou_out/
+
+# 暴露端口（Railway 会通过 $PORT 环境变量覆盖）
 EXPOSE 8000
 
-CMD ["gunicorn", "api_web_final:app", "--bind", "0.0.0.0:8000"]
+# 启动命令：使用 $PORT 环境变量，兼容 Railway
+CMD gunicorn api_web_final:app --bind 0.0.0.0:${PORT:-8000} --workers 1 --timeout 120
