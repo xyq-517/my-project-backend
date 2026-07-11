@@ -1,14 +1,7 @@
-torch
-torchvision
-tensorboard
-numpy
-matplotlib
-opencv-python-headless
-tqdm
-Pillow
-h5py
+# 轻量版依赖 — 预生成模式专用
+# 只包含 API 服务必需的依赖，不包含 PyTorch/OpenCV
 flask==2.3.3
 flask-cors==4.0.0
 gunicorn
-medpy
-scipy
+Pillow
+numpy
