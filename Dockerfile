@@ -1,28 +1,30 @@
-# Dockerfile - 极简版（连 apt-get 都不需要）
-# 解决 Railway 构建 OOM 问题：不执行任何 apt-get install
-# 预生成模式只需要 Python + Flask + Pillow + numpy
+# Dockerfile - COS 数据版（镜像超小，构建超快）
+# 数据文件从腾讯云 COS 下载，不打包进镜像
+# 镜像体积：~200MB，构建时间：~1分钟
 
 FROM python:3.11-slim
 
+# 只安装 wget 和 unzip（用于下载解压数据）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# 使用轻量版依赖（不含 torch、opencv）
+# 安装 Python 依赖
 COPY requirements-deploy.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制核心代码
+# 复制代码文件（只有代码，没有数据！）
 COPY api_web_final.py .
+COPY start.sh .
 
-# 复制数据文件（预生成图片、金标准、指标等）
-COPY kits19_hash_map.json .
-COPY per_image_metrics_kits19_dformer_EPA_test.csv .
-COPY img_out/ ./img_out/
-COPY VOCdevkit_kits19/ ./VOCdevkit_kits19/
-COPY VOCdevkit_lidc_test/ ./VOCdevkit_lidc_test/
-COPY miou_out/ ./miou_out/
+# 给启动脚本执行权限
+RUN chmod +x start.sh
 
 # 暴露端口
 EXPOSE 8000
 
-# 启动命令
-CMD gunicorn api_web_final:app --bind 0.0.0.0:${PORT:-8000} --workers 1 --timeout 120
+# 启动：先下载数据，再启动服务
+CMD ["./start.sh"]
